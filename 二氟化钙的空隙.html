@@ -114,12 +114,19 @@
     <div class="caption">鼠标拖拽旋转 / 滚轮缩放 | 点击画布控制自动旋转</div>
     <div class="click-hint">⏯️ 点击画面暂停/继续旋转</div>
 
-    <!-- 引入 Three.js 核心库和轨道控制器 -->
-    
+   <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
 
     <script type="module">
-        import * as THREE from './three.module.js';
-        import { OrbitControls } from './controls/OrbitControls.js';
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
 
         // --- 初始化场景、相机、渲染器 ---
         const scene = new THREE.Scene();
