@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ZnS 闪锌矿结构 (可点击暂停旋转)</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        #status-indicator.paused {
+            background-color: #f44336;
+            box-shadow: 0 0 8px #f44336;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #eee;
+            padding: 12px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.15);
+            font-size: 14px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .dot-s { background-color: #ffbe0b; } /* 硫黄色 */
+        .dot-zn { background-color: #3a86ff; } /* 锌蓝色 */
+        .dot-bond { background-color: #ffffff; width: 20px; height: 3px; border-radius: 1.5px; }
+        .dot-cell { background-color: transparent; border: 3px solid #ffffff; width: 14px; height: 14px; }
+        .dot-subcell { background-color: transparent; border: 2px solid #88ccff; width: 16px; height: 16px; }
+        .caption {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            background: rgba(0,0,0,0.3);
+            padding: 4px 10px;
+            border-radius: 16px;
+            backdrop-filter: blur(3px);
+            z-index: 100;
+        }
+        .click-hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: #ffd966;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            backdrop-filter: blur(4px);
+            border: 1px solid #ffd96633;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <span id="status-indicator"></span>
+        <span>🔬 ZnS 闪锌矿晶胞 | 细Zn-S键 + 粗边框 | <span id="status-text">旋转中</span> (点击画布暂停/继续)</span>
+    </div>
+    <div class="legend">
+        <div class="legend-item"><span class="color-dot dot-s"></span> 硫离子 S²⁻ (面心立方)</div>
+        <div class="legend-item"><span class="color-dot dot-zn"></span> 锌离子 Zn²⁺ (四面体位)</div>
+        <div class="legend-item"><span class="color-dot dot-bond"></span> Zn-S键 (细圆柱)</div>
+        <div class="legend-item"><span class="color-dot dot-cell"></span> 晶胞边框 (粗圆柱)</div>
+        <div class="legend-item"><span class="color-dot dot-subcell"></span> 八分小立方体 (加粗线框)</div>
+    </div>
+    <div class="caption">鼠标拖拽旋转 / 滚轮缩放 | 点击画面暂停/继续旋转</div>
+    <div class="click-hint">⏯️ 点击画面暂停/继续旋转</div>
+
+    <!-- 引入 Three.js 核心库和轨道控制器 -->
+     <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cyrus0827.github.io/CrystalStructure/three.module.js",
+                "three/addons/": "https://cyrus0827.github.io/CrystalStructure/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111822);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4, 8);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 轨道控制器 ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.maxDistance = 20;
+        controls.minDistance = 4;
+        controls.autoRotate = true;      // 初始自动旋转
+        controls.autoRotateSpeed = 1.0;
+        controls.enableZoom = true;
+        controls.target.set(0, 0, 0);
+
+        // --- 灯光系统 ---
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+
+        const light1 = new THREE.DirectionalLight(0xffffff, 1.2);
+        light1.position.set(2, 5, 3);
+        scene.add(light1);
+
+        const light2 = new THREE.DirectionalLight(0xffeedd, 0.8);
+        light2.position.set(-3, 2, -4);
+        scene.add(light2);
+
+        const light3 = new THREE.PointLight(0x446688, 0.5);
+        light3.position.set(0, 0, 5);
+        scene.add(light3);
+
+        const light4 = new THREE.PointLight(0x88aadd, 0.3);
+        light4.position.set(1, 1, 1);
+        scene.add(light4);
+
+        // --- 辅助网格 ---
+        const gridHelper = new THREE.GridHelper(12, 20, 0x335588, 0x224466);
+        gridHelper.position.y = -2.5;
+        scene.add(gridHelper);
+
+        // --- 定义晶胞参数 (边长4, 范围[-2,2]) ---
+        const cellSize = 4;
+        const half = cellSize / 2;
+
+        // ===== 定义原子位置 =====
+        // 硫离子 (S²⁻): 面心立方位置 (同CaF2中的钙)
+        const sulfurPositions = [
+            // 角顶 (8个)
+            [-2, -2, -2], [-2, -2, 2], [-2, 2, -2], [-2, 2, 2],
+            [2, -2, -2], [2, -2, 2], [2, 2, -2], [2, 2, 2],
+            // 面心 (6个)
+            [2, 0, 0], [-2, 0, 0], [0, 2, 0], [0, -2, 0], [0, 0, 2], [0, 0, -2]
+        ];
+
+        // 锌离子 (Zn²⁺): 占据一半的四面体空隙 (闪锌矿结构)
+        // 坐标: (-1,-1,-1), (-1,1,1), (1,-1,1), (1,1,-1)
+        const zincPositions = [
+            [-1, -1, -1],
+            [-1, 1, 1],
+            [1, -1, 1],
+            [1, 1, -1]
+        ];
+
+        // --- 1. 绘制晶胞边框 (加粗圆柱) ---
+        function createCylinderBetween(point1, point2, radius, color, opacity = 0.7) {
+            const from = new THREE.Vector3(point1[0], point1[1], point1[2]);
+            const to = new THREE.Vector3(point2[0], point2[1], point2[2]);
+            const direction = new THREE.Vector3().subVectors(to, from);
+            const length = direction.length();
+            
+            const cylinderGeo = new THREE.CylinderGeometry(radius, radius, length, 8);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                emissive: 0x000000,
+                roughness: 0.3,
+                metalness: 0.1
+            });
+            const cylinder = new THREE.Mesh(cylinderGeo, material);
+            
+            const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+            cylinder.position.copy(mid);
+            
+            cylinder.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.clone().normalize()
+            );
+            
+            return cylinder;
+        }
+
+        // 晶胞的8个顶点
+        const corners = [
+            [-2, -2, -2], [-2, -2, 2], [-2, 2, -2], [-2, 2, 2],
+            [2, -2, -2], [2, -2, 2], [2, 2, -2], [2, 2, 2]
+        ];
+        // 12条棱的顶点索引对
+        const edgeIndices = [
+            [0,1], [0,2], [0,4], [1,3], [1,5],
+            [2,3], [2,6], [3,7], [4,5], [4,6],
+            [5,7], [6,7]
+        ];
+        edgeIndices.forEach(idxPair => {
+            const p1 = corners[idxPair[0]];
+            const p2 = corners[idxPair[1]];
+            scene.add(createCylinderBetween(p1, p2, 0.12, 0xffffff, 0.6));
+        });
+
+        // 添加一层淡淡的发光边框
+        edgeIndices.forEach(idxPair => {
+            const p1 = corners[idxPair[0]];
+            const p2 = corners[idxPair[1]];
+            scene.add(createCylinderBetween(p1, p2, 0.18, 0x88aaff, 0.15));
+        });
+
+        // --- 2. 原子创建函数 ---
+        function createAtom(color, position, radius, emissive = 0x000000) {
+            const geometry = new THREE.SphereGeometry(radius, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: emissive,
+                roughness: 0.25,
+                metalness: 0.1,
+                emissiveIntensity: 0.1
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(position[0], position[1], position[2]);
+            return sphere;
+        }
+
+        // --- 3. 添加硫离子 (黄色, 半径稍大) ---
+        const sulfurColor = 0xffbe0b; // 金黄色
+        const sulfurRadius = 0.5;      // S²⁻ 较大
+        sulfurPositions.forEach(pos => scene.add(createAtom(sulfurColor, pos, sulfurRadius, 0x331100)));
+
+        // --- 4. 添加锌离子 (蓝色, 半径较小) ---
+        const zincColor = 0x3a86ff;     // 蓝色
+        const zincRadius = 0.35;        // Zn²⁺ 较小
+        zincPositions.forEach(pos => scene.add(createAtom(zincColor, pos, zincRadius, 0x112233)));
+
+        // --- 5. 绘制细化的 Zn-S 配位键 (细圆柱，半径0.05) ---
+        function createBond(posFrom, posTo, color = 0xffffff, radius = 0.05, opacity = 0.5) {
+            const from = new THREE.Vector3(posFrom[0], posFrom[1], posFrom[2]);
+            const to = new THREE.Vector3(posTo[0], posTo[1], posTo[2]);
+            
+            const direction = new THREE.Vector3().subVectors(to, from);
+            const length = direction.length();
+            
+            const cylinderGeo = new THREE.CylinderGeometry(radius, radius, length, 6);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                emissive: 0x000000,
+                roughness: 0.4,
+                metalness: 0.0
+            });
+            const cylinder = new THREE.Mesh(cylinderGeo, material);
+            
+            const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+            cylinder.position.copy(mid);
+            
+            cylinder.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.clone().normalize()
+            );
+            
+            return cylinder;
+        }
+
+        // 遍历每个锌离子，连接最近的四个硫离子
+        zincPositions.forEach(zn => {
+            const [zx, zy, zz] = zn;
+            const sx = Math.sign(zx); // 对于(-1,-1,-1) 得到 -1
+            const sy = Math.sign(zy);
+            const sz = Math.sign(zz);
+            
+            // 角顶硫: (sx*2, sy*2, sz*2)
+            const cornerS = [sx * 2, sy * 2, sz * 2];
+            // 三个面心硫
+            const faceX = [sx * 2, 0, 0];
+            const faceY = [0, sy * 2, 0];
+            const faceZ = [0, 0, sz * 2];
+            
+            scene.add(createBond(zn, cornerS, 0xffffff, 0.05, 0.5));
+            scene.add(createBond(zn, faceX, 0xffffff, 0.05, 0.5));
+            scene.add(createBond(zn, faceY, 0xffffff, 0.05, 0.5));
+            scene.add(createBond(zn, faceZ, 0xffffff, 0.05, 0.5));
+        });
+
+        // --- 6. 绘制八个小立方体 (每个边长为2，中心位于 (±1, ±1, ±1)) ---
+        const subCellSize = 2;
+        // 所有小立方体的中心 (共8个)
+        const subCellCenters = [
+            [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [-1, 1, 1],
+            [1, -1, -1], [1, -1, 1], [1, 1, -1], [1, 1, 1]
+        ];
+        
+        subCellCenters.forEach(center => {
+            const subBoxGeo = new THREE.BoxGeometry(subCellSize, subCellSize, subCellSize);
+            const subEdges = new THREE.EdgesGeometry(subBoxGeo);
+            
+            // 第一层线框 (亮色)
+            const subLines1 = new THREE.LineSegments(subEdges, new THREE.LineBasicMaterial({ 
+                color: 0xaaddff, 
+                transparent: true, 
+                opacity: 0.7
+            }));
+            subLines1.position.set(center[0], center[1], center[2]);
+            scene.add(subLines1);
+            
+            // 第二层线框 (稍放大，半透明，营造加粗感)
+            const subLines2 = new THREE.LineSegments(subEdges, new THREE.LineBasicMaterial({ 
+                color: 0x88aaff, 
+                transparent: true, 
+                opacity: 0.3
+            }));
+            subLines2.position.set(center[0], center[1], center[2]);
+            subLines2.scale.set(1.06, 1.06, 1.06);
+            scene.add(subLines2);
+        });
+
+        // --- 雾效 ---
+        scene.fog = new THREE.FogExp2(0x111822, 0.025);
+
+        // ========== 点击暂停/继续旋转功能 ==========
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+
+        function updateRotationUI() {
+            if (controls.autoRotate) {
+                statusIndicator.classList.remove('paused');
+                statusText.textContent = '旋转中';
+            } else {
+                statusIndicator.classList.add('paused');
+                statusText.textContent = '暂停';
+            }
+        }
+
+        // 初始状态
+        updateRotationUI();
+
+        // 监听canvas点击事件
+        renderer.domElement.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            updateRotationUI();
+        });
+
+        // --- 动画循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- 窗口自适应 ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        console.log('ZnS 闪锌矿晶胞已加载。硫:14 (共享表示), 锌:4, 键:16条, 小立方体:8个');
+    </script>
+</body>
+</html>

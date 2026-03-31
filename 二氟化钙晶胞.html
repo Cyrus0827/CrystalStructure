@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CaF₂ 萤石结构 (加粗配位键)</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            pointer-events: none;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 100;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #eee;
+            padding: 12px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.15);
+            font-size: 14px;
+            display: flex;
+            gap: 25px;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .color-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .dot-ca { background-color: #3a86ff; }
+        .dot-f { background-color: #ffbe0b; }
+        .dot-bond { background-color: #ffffff; width: 20px; height: 6px; border-radius: 3px; }
+        .caption {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+            background: rgba(0,0,0,0.3);
+            padding: 4px 10px;
+            border-radius: 16px;
+            backdrop-filter: blur(3px);
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">🔬 CaF₂ (萤石) 晶胞 | 加粗半透明圆柱体表示Ca-F配位键 (每个F⁻与4个Ca²⁺相连)</div>
+    <div class="legend">
+        <div class="legend-item"><span class="color-dot dot-ca"></span> 钙离子 (Ca²⁺)</div>
+        <div class="legend-item"><span class="color-dot dot-f"></span> 氟离子 (F⁻)</div>
+        <div class="legend-item"><span class="color-dot dot-bond"></span> Ca-F 键 (加粗)</div>
+        <div class="legend-item"><span style="border:1px dashed #aaa; width:20px; height:20px; border-radius:0;"></span> 晶胞边界</div>
+    </div>
+    <div class="caption">Three.js 交互展示 | 鼠标拖拽旋转 / 滚轮缩放</div>
+
+    <!-- 引入 Three.js 核心库和轨道控制器 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111822);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4, 8);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 轨道控制器 ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.maxDistance = 20;
+        controls.minDistance = 4;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.0;
+        controls.enableZoom = true;
+        controls.target.set(0, 0, 0);
+
+        // --- 灯光系统 ---
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+
+        const light1 = new THREE.DirectionalLight(0xffffff, 1.2);
+        light1.position.set(2, 5, 3);
+        scene.add(light1);
+
+        const light2 = new THREE.DirectionalLight(0xffeedd, 0.8);
+        light2.position.set(-3, 2, -4);
+        scene.add(light2);
+
+        const light3 = new THREE.PointLight(0x446688, 0.5);
+        light3.position.set(0, 0, 5);
+        scene.add(light3);
+
+        const light4 = new THREE.PointLight(0x88aadd, 0.3);
+        light4.position.set(1, 1, 1);
+        scene.add(light4);
+
+        // --- 辅助网格 (帮助感知深度) ---
+        const gridHelper = new THREE.GridHelper(12, 20, 0x335588, 0x224466);
+        gridHelper.position.y = -2.5;
+        scene.add(gridHelper);
+
+        // --- 定义晶胞参数 ---
+        const cellSize = 4;
+        const half = cellSize / 2;
+
+        // ===== 定义原子位置 =====
+        // 钙离子: 角顶 + 面心
+        const caPositions = [
+            // 角顶
+            [-2, -2, -2], [-2, -2, 2], [-2, 2, -2], [-2, 2, 2],
+            [2, -2, -2], [2, -2, 2], [2, 2, -2], [2, 2, 2],
+            // 面心
+            [2, 0, 0], [-2, 0, 0], [0, 2, 0], [0, -2, 0], [0, 0, 2], [0, 0, -2]
+        ];
+
+        // 氟离子: 内部四面体位置
+        const fPositions = [
+            [-1, -1, -1], [-1, -1, 1], [-1, 1, -1], [-1, 1, 1],
+            [1, -1, -1], [1, -1, 1], [1, 1, -1], [1, 1, 1]
+        ];
+
+        // --- 1. 绘制晶胞边框 ---
+        const boxGeometry = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
+        const boxEdges = new THREE.EdgesGeometry(boxGeometry);
+        const boxLines = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0xaaccff }));
+        scene.add(boxLines);
+        const boxLinesGhost = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x88aadd, opacity: 0.2, transparent: true }));
+        boxLinesGhost.scale.set(1.02, 1.02, 1.02);
+        scene.add(boxLinesGhost);
+
+        // --- 2. 原子创建函数 ---
+        function createAtom(color, position, radius, emissive = 0x000000) {
+            const geometry = new THREE.SphereGeometry(radius, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: emissive,
+                roughness: 0.25,
+                metalness: 0.1,
+                emissiveIntensity: 0.1
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(position[0], position[1], position[2]);
+            return sphere;
+        }
+
+        // --- 3. 添加钙离子 ---
+        const caColor = 0x3a86ff;
+        const caRadius = 0.45;
+        caPositions.forEach(pos => scene.add(createAtom(caColor, pos, caRadius, 0x112233)));
+
+        // --- 4. 添加氟离子 ---
+        const fColor = 0xffbe0b;
+        const fRadius = 0.4;
+        fPositions.forEach(pos => scene.add(createAtom(fColor, pos, fRadius, 0x331100)));
+
+        // --- 5. 绘制加粗的 Ca-F 配位键 (使用圆柱体) ---
+        // 圆柱体默认沿Y轴，需要旋转到连接方向
+        function createBond(posFrom, posTo, color = 0xffffff, radius = 0.13, opacity = 0.45) {
+            const from = new THREE.Vector3(posFrom[0], posFrom[1], posFrom[2]);
+            const to = new THREE.Vector3(posTo[0], posTo[1], posTo[2]);
+            
+            const direction = new THREE.Vector3().subVectors(to, from);
+            const length = direction.length();
+            
+            // 圆柱体几何，径向分段8足够，因为半透明且较细
+            const cylinderGeo = new THREE.CylinderGeometry(radius, radius, length, 8);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                emissive: 0x000000,
+                roughness: 0.4,
+                metalness: 0.0
+            });
+            const cylinder = new THREE.Mesh(cylinderGeo, material);
+            
+            // 放置在中点
+            const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+            cylinder.position.copy(mid);
+            
+            // 旋转使Y轴指向方向向量
+            cylinder.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.clone().normalize()
+            );
+            
+            return cylinder;
+        }
+
+        // 遍历每个氟，连接最近的四个钙
+        fPositions.forEach(f => {
+            const [fx, fy, fz] = f;
+            const sx = Math.sign(fx); // 1 或 -1
+            const sy = Math.sign(fy);
+            const sz = Math.sign(fz);
+            
+            // 角顶钙: (sx*2, sy*2, sz*2)
+            const cornerCa = [sx * 2, sy * 2, sz * 2];
+            // 三个面心钙
+            const faceX = [sx * 2, 0, 0];
+            const faceY = [0, sy * 2, 0];
+            const faceZ = [0, 0, sz * 2];
+            
+            // 创建四条加粗圆柱键
+            scene.add(createBond(f, cornerCa, 0xffffff, 0.13, 0.45));
+            scene.add(createBond(f, faceX, 0xffffff, 0.13, 0.45));
+            scene.add(createBond(f, faceY, 0xffffff, 0.13, 0.45));
+            scene.add(createBond(f, faceZ, 0xffffff, 0.13, 0.45));
+        });
+
+        // --- 雾效 ---
+        scene.fog = new THREE.FogExp2(0x111822, 0.025);
+
+        // --- 动画循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- 窗口自适应 ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        console.log('CaF₂ 晶胞带加粗配位键 (圆柱体) 已加载。钙:14, 氟:8, 键:32条圆柱');
+    </script>
+</body>
+</html>

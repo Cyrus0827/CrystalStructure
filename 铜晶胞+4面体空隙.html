@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cu晶胞 - 四面体空隙可视化 | 彩色连线区分不同空隙</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.75);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+            z-index: 10;
+            border-left: 4px solid #ffaa66;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-size: 14px;
+        }
+        #info h1 {
+            margin: 0 0 5px;
+            font-size: 1.2rem;
+        }
+        #info p {
+            margin: 0;
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #eee;
+            font-size: 12px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 10;
+            border-right: 3px solid #ffaa66;
+            text-align: left;
+            line-height: 1.5;
+        }
+        .legend span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .legend .cu { background-color: #ffaa55; box-shadow: 0 0 4px #ffcc88; }
+        .legend .tetra { background-color: #ff6666; opacity: 0.9; }
+        .legend .line { background-color: #88aaff; width: 12px; height: 2px; border-radius: 0; vertical-align: middle; margin-bottom: 2px; }
+        .note {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #ccc;
+            pointer-events: none;
+            font-family: monospace;
+        }
+        @media (max-width: 600px) {
+            .legend { font-size: 10px; padding: 6px 10px; }
+            #info { font-size: 10px; top: 10px; left: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>🔬 Cu 晶胞 (FCC) | 四面体空隙全展示</h1>
+        <p>高亮暖金色原子 | 红色半透明球: 8个四面体空隙 | <strong style="color:#ffaa66;">彩色线条: 每个空隙与相邻4个原子的连线 (不同空隙颜色不同)</strong></p>
+    </div>
+    <div class="legend">
+        <div><span class="cu"></span> 原子 (面心立方位置，高亮暖金色)</div>
+        <div><span class="tetra"></span> 四面体空隙中心 (共8个)</div>
+        <div><span class="line"></span> 空隙-原子连线 (8组，每组颜色不同)</div>
+        <div style="margin-top:5px;"><span style="background:white;"></span> 白色线框: 晶胞边界</div>
+        <div style="margin-top:5px; font-size:10px; color:#aaa;">🖱️ 鼠标拖拽旋转 | 右键平移 | 滚动缩放</div>
+    </div>
+    <div class="note">
+        📍 四面体空隙坐标 (±0.5, ±0.5, ±0.5) | 每个空隙与4个最近邻原子构成四面体 | 不同颜色线条区分不同空隙的四面体环境
+    </div>
+
+    <!-- 引入Three.js核心库及扩展 -->
+     <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cyrus0827.github.io/CrystalStructure/three.module.js",
+                "three/addons/": "https://cyrus0827.github.io/CrystalStructure/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050b1a); // 深邃星空蓝黑背景
+        scene.fog = new THREE.FogExp2(0x050b1a, 0.008);
+
+        // 透视相机
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(3, 2.5, 4);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // CSS2渲染器（用于可能保留的辅助标签，但四面体空隙汉字已移除）
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        // --- 控制器 ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 1.2;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.autoRotate = false;
+        controls.target.set(0, 0, 0);
+
+        // --- 光照系统 (增强高对比度) ---
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        // 主光源方向光
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(2, 5, 3);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+        // 辅助背光暖色
+        const backLight = new THREE.PointLight(0xccaa77, 0.6);
+        backLight.position.set(-2, -1, -2);
+        scene.add(backLight);
+        // 冷色填充光
+        const fillLight = new THREE.PointLight(0x88aaff, 0.4);
+        fillLight.position.set(0, -2, 1);
+        scene.add(fillLight);
+        // 侧补光
+        const rimLight = new THREE.PointLight(0xffcc88, 0.5);
+        rimLight.position.set(1.5, 1.8, -2);
+        scene.add(rimLight);
+        
+        // 辅助网格
+        const gridHelper = new THREE.GridHelper(6, 20, 0x88aaff, 0x335588);
+        gridHelper.position.y = -1.8;
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.25;
+        scene.add(gridHelper);
+        
+        // 轻量轴线
+        const axesHelper = new THREE.AxesHelper(2.2);
+        axesHelper.material.transparent = true;
+        axesHelper.material.opacity = 0.12;
+        scene.add(axesHelper);
+        
+        // --- 原子材质 (高亮暖金色，与黑色背景强烈对比) ---
+        const atomMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffaa55,        // 亮暖金
+            emissive: 0x442200,     // 微弱自发光
+            roughness: 0.28,
+            metalness: 0.92,
+            flatShading: false
+        });
+        const atomRadius = 0.14;
+        
+        // 四面体空隙材质 (半透明红，依然醒目)
+        const tetraMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff6666,
+            emissive: 0x331111,
+            roughness: 0.3,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.78
+        });
+        const tetraRadius = 0.09;
+        
+        // --- 1. 晶胞边框 ---
+        const boxEdges = [
+            [-1, -1, -1], [ 1, -1, -1], [ 1, -1, -1], [ 1, -1,  1], [ 1, -1,  1], [-1, -1,  1], [-1, -1,  1], [-1, -1, -1],
+            [-1,  1, -1], [ 1,  1, -1], [ 1,  1, -1], [ 1,  1,  1], [ 1,  1,  1], [-1,  1,  1], [-1,  1,  1], [-1,  1, -1],
+            [-1, -1, -1], [-1,  1, -1], [ 1, -1, -1], [ 1,  1, -1], [ 1, -1,  1], [ 1,  1,  1], [-1, -1,  1], [-1,  1,  1]
+        ];
+        const lineGeometry = new THREE.BufferGeometry();
+        const vertices = [];
+        boxEdges.forEach(v => vertices.push(v[0], v[1], v[2]));
+        lineGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+        const wireframe = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ color: 0xffffff }));
+        scene.add(wireframe);
+        
+        // 晶胞顶点光点
+        const cornerPoints = [
+            [-1, -1, -1], [ 1, -1, -1], [ 1, -1,  1], [-1, -1,  1],
+            [-1,  1, -1], [ 1,  1, -1], [ 1,  1,  1], [-1,  1,  1]
+        ];
+        const glowMat = new THREE.PointsMaterial({ color: 0xffdd99, size: 0.045, transparent: true, opacity: 0.7 });
+        const cornerGlow = new THREE.Points(new THREE.BufferGeometry(), glowMat);
+        const cornerPosArray = [];
+        cornerPoints.forEach(p => cornerPosArray.push(p[0], p[1], p[2]));
+        cornerGlow.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cornerPosArray), 3));
+        scene.add(cornerGlow);
+        
+        // --- 2. 添加原子 (FCC: 角点 + 面心) ---
+        const cornerAtoms = [
+            [-1, -1, -1], [ 1, -1, -1], [ 1, -1,  1], [-1, -1,  1],
+            [-1,  1, -1], [ 1,  1, -1], [ 1,  1,  1], [-1,  1,  1]
+        ];
+        const faceCenteredAtoms = [
+            [ 1,  0,  0], [-1,  0,  0], [ 0,  1,  0], [ 0, -1,  0], [ 0,  0,  1], [ 0,  0, -1]
+        ];
+        
+        function addAtom(position, material, radius) {
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(radius, 36, 28), material);
+            sphere.position.set(position[0], position[1], position[2]);
+            sphere.castShadow = true;
+            sphere.receiveShadow = false;
+            scene.add(sphere);
+        }
+        
+        cornerAtoms.forEach(pos => addAtom(pos, atomMaterial, atomRadius));
+        faceCenteredAtoms.forEach(pos => addAtom(pos, atomMaterial, atomRadius));
+        
+        // --- 3. 四面体空隙: 8个 (±0.5, ±0.5, ±0.5) ---
+        const tetraPositions = [
+            [-0.5, -0.5, -0.5], [ 0.5, -0.5, -0.5], [ 0.5, -0.5,  0.5], [-0.5, -0.5,  0.5],
+            [-0.5,  0.5, -0.5], [ 0.5,  0.5, -0.5], [ 0.5,  0.5,  0.5], [-0.5,  0.5,  0.5]
+        ];
+        
+        const tetraMeshes = [];
+        tetraPositions.forEach(pos => {
+            const tetraSphere = new THREE.Mesh(new THREE.SphereGeometry(tetraRadius, 32, 24), tetraMaterial);
+            tetraSphere.position.set(pos[0], pos[1], pos[2]);
+            tetraSphere.castShadow = true;
+            scene.add(tetraSphere);
+            tetraMeshes.push(tetraSphere);
+        });
+        
+        // --- 辅助函数: 根据空隙坐标计算与之相邻的4个Cu原子位置 (构成四面体的顶点) ---
+        // 在FCC中，四面体空隙位于(±0.5, ±0.5, ±0.5)，相邻原子为一个角点和三个相邻面心
+        function getNeighboringAtomsForTetra(voidPos) {
+            const [x, y, z] = voidPos;
+            // 符号函数: 返回 1 或 -1
+            const sx = x > 0 ? 1 : -1;
+            const sy = y > 0 ? 1 : -1;
+            const sz = z > 0 ? 1 : -1;
+            
+            // 角点原子: (sx, sy, sz)
+            const corner = [sx, sy, sz];
+            // 三个面心原子: (sx, 0, 0), (0, sy, 0), (0, 0, sz)
+            const face1 = [sx, 0, 0];
+            const face2 = [0, sy, 0];
+            const face3 = [0, 0, sz];
+            
+            return [corner, face1, face2, face3];
+        }
+        
+        // --- 4. 为每个四面体空隙绘制到相邻原子的连线，不同空隙使用不同颜色 ---
+        // 为了视觉美观且区分明显，使用HSL色相环，饱和度和亮度较高，线条略半透明但鲜艳
+        // 同时为避免线条过于杂乱，每个空隙的4条线使用相同颜色，但不同空隙颜色差异明显
+        
+        // 存储所有连线对象，以备后续可能需要动态调整 (无特殊需求，仅用于管理)
+        const connectionLines = [];
+        
+        tetraPositions.forEach((voidPos, idx) => {
+            // 计算该空隙的相邻原子
+            const neighbors = getNeighboringAtomsForTetra(voidPos);
+            
+            // 生成颜色: 色相根据索引在0~360度之间均匀分布，饱和度0.9，亮度0.7
+            const hue = (idx / tetraPositions.length) * 360;
+            const color = new THREE.Color().setHSL(hue / 360, 0.9, 0.65);
+            // 线条材质，略微发光效果（通过emissive无法直接用于线条，但使用高饱和颜色+适当透明度）
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color, linewidth: 2, transparent: true, opacity: 0.85 });
+            
+            // 为该空隙的4条连线分别创建Line对象
+            neighbors.forEach(atomPos => {
+                const points = [
+                    new THREE.Vector3(voidPos[0], voidPos[1], voidPos[2]),
+                    new THREE.Vector3(atomPos[0], atomPos[1], atomPos[2])
+                ];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const line = new THREE.Line(geometry, lineMaterial);
+                scene.add(line);
+                connectionLines.push(line);
+            });
+        });
+        
+        // 可选: 为了进一步增强可视化，为每个空隙的四面体添加原子间的轮廓线（半透灰线），
+        // 这样每个四面体的框架更完整，但为了不喧宾夺主，采用低饱和度、较低透明度，统一颜色。
+        // 由于题目要求“相邻间隙用不同颜色的线条进行区分”，主要是指空隙到原子的连线已用颜色区分，
+        // 但加上原子间连线可使四面体结构更清晰，且使用同一空隙的连线颜色但透明度降低，增加立体感。
+        // 为保持简洁且不重叠颜色冲突，这里为每个空隙的四个原子之间添加半透淡色连线（六条边），使用同一空隙的颜色但透明度更低。
+        tetraPositions.forEach((voidPos, idx) => {
+            const neighbors = getNeighboringAtomsForTetra(voidPos);
+            // 为这4个原子构建四面体的6条棱边
+            const edges = [
+                [neighbors[0], neighbors[1]], [neighbors[0], neighbors[2]], [neighbors[0], neighbors[3]],
+                [neighbors[1], neighbors[2]], [neighbors[1], neighbors[3]], [neighbors[2], neighbors[3]]
+            ];
+            // 使用与空隙连线相同的色相，但降低亮度和透明度，作为辅助框架
+            const hue = (idx / tetraPositions.length) * 360;
+            const edgeColor = new THREE.Color().setHSL(hue / 360, 0.7, 0.45);
+            const edgeMaterial = new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: 0.4 });
+            
+            edges.forEach(edge => {
+                const points = [
+                    new THREE.Vector3(edge[0][0], edge[0][1], edge[0][2]),
+                    new THREE.Vector3(edge[1][0], edge[1][1], edge[1][2])
+                ];
+                const geom = new THREE.BufferGeometry().setFromPoints(points);
+                const edgeLine = new THREE.Line(geom, edgeMaterial);
+                scene.add(edgeLine);
+            });
+        });
+        
+        // --- 保留一个高亮示例: 左下前空隙 (-0.5, -0.5, -0.5) 添加动态效果，便于观察 ---
+        const demoVoidPos = [-0.5, -0.5, -0.5];
+        // 高亮光晕球体
+        const glowRingMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa77,
+            emissive: 0x552200,
+            transparent: true,
+            opacity: 0.32,
+            side: THREE.BackSide
+        });
+        const highlightGlow = new THREE.Mesh(new THREE.SphereGeometry(tetraRadius + 0.055, 20, 20), glowRingMat);
+        highlightGlow.position.set(demoVoidPos[0], demoVoidPos[1], demoVoidPos[2]);
+        scene.add(highlightGlow);
+        
+        // 动态粒子围绕示例空隙
+        const particleCount = 18;
+        const particleSystem = new THREE.BufferGeometry();
+        const particlePositions = [];
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions.push(demoVoidPos[0] + (Math.random() - 0.5) * 0.3);
+            particlePositions.push(demoVoidPos[1] + (Math.random() - 0.5) * 0.3);
+            particlePositions.push(demoVoidPos[2] + (Math.random() - 0.5) * 0.3);
+        }
+        particleSystem.setAttribute('position', new THREE.BufferAttribute(new Float32Array(particlePositions), 3));
+        const particleMat = new THREE.PointsMaterial({ color: 0xffaa77, size: 0.022, transparent: true, blending: THREE.AdditiveBlending });
+        const particles = new THREE.Points(particleSystem, particleMat);
+        scene.add(particles);
+        
+        // 所有空隙处添加微弱点光源，增强体积感
+        const glowLights = [];
+        tetraPositions.forEach(pos => {
+            const pointLight = new THREE.PointLight(0xff8866, 0.28, 1.3);
+            pointLight.position.set(pos[0], pos[1], pos[2]);
+            scene.add(pointLight);
+            glowLights.push(pointLight);
+        });
+        
+        // 示例空隙专用加强光源
+        const demoLight = new THREE.PointLight(0xffaa77, 0.65, 1.8);
+        demoLight.position.set(demoVoidPos[0], demoVoidPos[1], demoVoidPos[2]);
+        scene.add(demoLight);
+        
+        // 存储粒子原始位置用于动态浮动
+        const originalParticlePos = [];
+        for (let i = 0; i < particleCount; i++) {
+            originalParticlePos.push({
+                x: particlePositions[i*3],
+                y: particlePositions[i*3+1],
+                z: particlePositions[i*3+2]
+            });
+        }
+        
+        // 添加CSS2D辅助说明标签 (仅一个指示示例)
+        const tipDiv = document.createElement('div');
+        tipDiv.textContent = '✨ 高亮示例: 左下前空隙 + 动态粒子 (所有空隙均已用彩色线条展示四面体环境)';
+        tipDiv.style.backgroundColor = 'rgba(0,0,0,0.65)';
+        tipDiv.style.color = '#ffdd99';
+        tipDiv.style.fontSize = '10px';
+        tipDiv.style.padding = '3px 10px';
+        tipDiv.style.borderRadius = '20px';
+        tipDiv.style.border = '1px solid #ffaa55';
+        tipDiv.style.fontFamily = 'monospace';
+        tipDiv.style.position = 'absolute';
+        tipDiv.style.bottom = '70px';
+        tipDiv.style.left = '20px';
+        tipDiv.style.pointerEvents = 'none';
+        tipDiv.style.backdropFilter = 'blur(4px)';
+        document.body.appendChild(tipDiv);
+        
+        // 可选: 在空隙位置添加小的光晕点阵，使空隙更明显 (不做额外处理)
+        
+        // --- 动画循环: 粒子浮动与光源呼吸 ---
+        let time = 0;
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.014;
+            
+            // 粒子动态
+            const positionsAttr = particleSystem.attributes.position.array;
+            for (let i = 0; i < particleCount; i++) {
+                const orig = originalParticlePos[i];
+                const offsetX = Math.sin(time * 1.9 + i) * 0.028;
+                const offsetY = Math.cos(time * 1.6 + i * 0.8) * 0.028;
+                const offsetZ = Math.sin(time * 2.1 + i * 0.6) * 0.028;
+                positionsAttr[i*3] = orig.x + offsetX;
+                positionsAttr[i*3+1] = orig.y + offsetY;
+                positionsAttr[i*3+2] = orig.z + offsetZ;
+            }
+            particleSystem.attributes.position.needsUpdate = true;
+            
+            // 光源呼吸
+            const intensity = 0.6 + Math.sin(time * 3.2) * 0.2;
+            demoLight.intensity = intensity;
+            glowLights.forEach((light, idx) => {
+                light.intensity = 0.25 + Math.sin(time * 2.6 + idx) * 0.12;
+            });
+            
+            if (highlightGlow.material) {
+                highlightGlow.material.opacity = 0.28 + Math.sin(time * 4.2) * 0.12;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        
+        animate();
+        
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        console.log('Cu晶胞3D模型 | 8个四面体空隙已全部展示，每个空隙到相邻4个原子的连线使用不同颜色区分');
+        console.table(tetraPositions.map((p, i) => ({ 
+            空隙坐标: `(${p[0]}, ${p[1]}, ${p[2]})`, 
+            相邻原子: getNeighboringAtomsForTetra(p).map(a => `(${a[0]},${a[1]},${a[2]})`).join(', '),
+            连线颜色: `色相 ${((i / tetraPositions.length) * 360).toFixed(0)}°`
+        })));
+    </script>
+</body>
+</html>
